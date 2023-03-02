@@ -14,6 +14,9 @@ use crate::{
     utils,
 };
 
+///
+pub type U8Storage<C, const N: usize> = SingleRange<C, u8, N>;
+
 /// Generic inline SingleRangeStorage.
 ///
 /// `S` is the underlying storage, used to specify the size and alignment.
@@ -60,6 +63,17 @@ impl<C: Capacity, S, const N: usize> RangeStorage for SingleRange<C, S, N> {
         let pointer: NonNull<MaybeUninit<T>> = NonNull::from(&mut self.data).cast();
 
         NonNull::slice_from_raw_parts(pointer, N)
+    }
+
+    unsafe fn try_grow<T>(
+        &mut self,
+        handle: Self::Handle<T>,
+        new_capacity: Self::Capacity,
+    ) -> Result<Self::Handle<T>, AllocError> {
+        if new_capacity.into_usize() > self.maximum_capacity::<T>().into_usize() {
+            return Err(AllocError);
+        }
+        Ok(handle)
     }
 }
 

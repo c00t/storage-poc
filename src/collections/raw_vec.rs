@@ -30,6 +30,22 @@ impl<T, S: SingleRangeStorage> RawVec<T, S> {
         Self { len, data, storage }
     }
 
+    /// Create a instance with capacity
+    pub fn with_capacity(mut storage: S, capacity: usize) -> Self {
+        let len = Self::into_capacity(0);
+        let data = storage
+            .allocate(Self::into_capacity(capacity))
+            .expect("Storage capacity isn't sufficient");
+
+        Self { len, data, storage }
+    }
+
+    /// Extend self with an element slice
+    pub fn extend_from_slice(&mut self, other: &[T]) {
+        // TODO: deal with result
+        self.try_append_elements(other).expect("capacity exceeded");
+    }
+
     /// Returns whether `self` is empty, or not.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -189,6 +205,33 @@ impl<T, S: SingleRangeStorage> RawVec<T, S> {
         unsafe { &mut *range.as_ptr() }
     }
 
+    fn try_append_elements(&mut self, other: &[T]) -> Result<(), ()> {
+        let count = other.len();
+        let new_cap = (self.len() + count).next_power_of_two();
+
+        //  Safety:
+        //  -   `self.data` is a valid handle pointing to valid data.
+        self.data = match unsafe {
+            self.storage
+                .try_grow(self.data, Self::into_capacity(new_cap))
+        } {
+            Ok(handle) => handle,
+            Err(_) => return Err(()),
+        };
+
+        let len = self.len();
+
+        unsafe {
+            ptr::copy_nonoverlapping(
+                other as *const [T] as *const T,
+                self.as_mut_ptr().add(len),
+                count,
+            )
+        };
+        self.len = Self::into_capacity(len + count);
+        Ok(())
+    }
+
     #[inline(never)]
     fn try_push_grow(&mut self, e: T) -> Result<(), T> {
         let len = self.len.into_usize();
@@ -308,7 +351,7 @@ mod test_allocator {
         assert_eq!(
         "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]",
         format!("{:?}", vec)
-    );
+        );
 
         mem::drop(vec);
 

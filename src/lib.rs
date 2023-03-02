@@ -1,4 +1,3 @@
-#![cfg_attr(not(test), no_std)]
 //  Language Features
 #![feature(coerce_unsized)]
 #![feature(ptr_metadata)]

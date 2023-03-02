@@ -58,6 +58,10 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
         handle: Self::Handle<T>,
         new_capacity: Self::Capacity,
     ) -> Result<Self::Handle<T>, AllocError> {
+        if handle.len() >= new_capacity {
+            return Ok(handle);
+        }
+
         debug_assert!(handle.len() < new_capacity);
 
         if handle.len() == 0 {
