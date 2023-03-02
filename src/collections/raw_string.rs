@@ -1,4 +1,4 @@
-use crate::{collections::raw_vec::RawVec, traits::Capacity, traits::SingleRangeStorage};
+use crate::{collections::raw_vec::RawVec, traits::SingleRangeStorage};
 
 /// Poc of String
 ///
@@ -67,9 +67,6 @@ impl<S: SingleRangeStorage> core::fmt::Display for RawString<S> {
 
 #[cfg(test)]
 mod test_inline {
-    use core::mem;
-
-    use crate::inline::SingleRange;
     use crate::inline::U8Storage;
 
     use super::*;
@@ -79,7 +76,7 @@ mod test_inline {
         type Storage = U8Storage<u8, 31>;
         type String = RawString<Storage>;
 
-        let mut vec = String::default();
+        let vec = String::default();
         let x: &str = &vec;
 
         assert_eq!("", x);
@@ -99,21 +96,20 @@ mod test_inline {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Storage capacity isn't sufficient: AllocError")]
     fn exceed_capacity() {
         type Storage = U8Storage<u8, 5>;
         type String = RawString<Storage>;
-        let vec = String::from_string(Storage::default(), std::string::String::from("xxxxxx"));
+        let _vec = String::from_string(Storage::default(), std::string::String::from("xxxxxx"));
     }
 }
 
 #[cfg(test)]
 mod test_allocator {
-    use core::mem;
     use std::ops::Deref;
 
     use crate::allocator::SingleRange;
-    use crate::utils::{NonAllocator, SpyAllocator};
+    use crate::utils::SpyAllocator;
 
     use super::*;
 
