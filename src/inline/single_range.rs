@@ -1,8 +1,18 @@
 //! Simple implementation of `SingleRangeStorage`.
 
-use core::{alloc::AllocError, cmp, fmt::{self, Debug}, marker::PhantomData, mem::{self, MaybeUninit}, ptr::NonNull};
+use core::{
+    alloc::AllocError,
+    cmp,
+    fmt::{self, Debug},
+    marker::PhantomData,
+    mem::{self, MaybeUninit},
+    ptr::NonNull,
+};
 
-use crate::{traits::{Capacity, RangeStorage, SingleRangeStorage}, utils};
+use crate::{
+    traits::{Capacity, RangeStorage, SingleRangeStorage},
+    utils,
+};
 
 /// Generic inline SingleRangeStorage.
 ///
@@ -14,7 +24,12 @@ pub struct SingleRange<C, S, const N: usize> {
 
 impl<C, S, const N: usize> SingleRange<C, S, N> {
     /// Creates an instance of SingleRange.
-    pub fn new() -> Self { Self { data: MaybeUninit::uninit_array(), _marker: PhantomData, } }
+    pub fn new() -> Self {
+        Self {
+            data: MaybeUninit::uninit_array(),
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<C: Capacity, S, const N: usize> RangeStorage for SingleRange<C, S, N> {
@@ -63,19 +78,24 @@ impl<C, S, const N: usize> Debug for SingleRange<C, S, N> {
 }
 
 impl<C, S, const N: usize> Default for SingleRange<C, S, N> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-
 /// Handle of SingleRange.
-pub struct SingleRangeHandle<T>(PhantomData<fn(T)->T>);
+pub struct SingleRangeHandle<T>(PhantomData<fn(T) -> T>);
 
 impl<T> SingleRangeHandle<T> {
-    fn new() -> Self { Self(PhantomData) }
+    fn new() -> Self {
+        Self(PhantomData)
+    }
 }
 
 impl<T> Clone for SingleRangeHandle<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T> Copy for SingleRangeHandle<T> {}
@@ -89,29 +109,28 @@ impl<T> Debug for SingleRangeHandle<T> {
 #[cfg(test)]
 mod tests {
 
-use super::*;
+    use super::*;
 
-#[test]
-fn new_unconditional_success() {
-    SingleRange::<u8, u8, 42>::new();
-}
+    #[test]
+    fn new_unconditional_success() {
+        SingleRange::<u8, u8, 42>::new();
+    }
 
-#[test]
-fn allocate_success() {
-    let mut storage = SingleRange::<u8, u8, 42>::new();
-    storage.allocate::<u8>(2).unwrap();
-}
+    #[test]
+    fn allocate_success() {
+        let mut storage = SingleRange::<u8, u8, 42>::new();
+        storage.allocate::<u8>(2).unwrap();
+    }
 
-#[test]
-fn allocate_insufficient_size() {
-    let mut storage = SingleRange::<u8, u8, 2>::new();
-    storage.allocate::<u8>(3).unwrap_err();
-}
+    #[test]
+    fn allocate_insufficient_size() {
+        let mut storage = SingleRange::<u8, u8, 2>::new();
+        storage.allocate::<u8>(3).unwrap_err();
+    }
 
-#[test]
-fn allocate_insufficient_alignment() {
-    let mut storage = SingleRange::<u8, u8, 42>::new();
-    storage.allocate::<u32>(1).unwrap_err();
-}
-
+    #[test]
+    fn allocate_insufficient_alignment() {
+        let mut storage = SingleRange::<u8, u8, 42>::new();
+        storage.allocate::<u32>(1).unwrap_err();
+    }
 } // mod tests

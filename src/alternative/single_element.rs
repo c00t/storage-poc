@@ -1,6 +1,13 @@
 //! Alternative implementation of `SingleElementStorage`.
 
-use core::{alloc::AllocError, fmt::{self, Debug}, hint, marker::Unsize, mem, ptr::{NonNull, Pointee}};
+use core::{
+    alloc::AllocError,
+    fmt::{self, Debug},
+    hint,
+    marker::Unsize,
+    mem,
+    ptr::{NonNull, Pointee},
+};
 
 use crate::traits::{ElementStorage, SingleElementStorage};
 
@@ -14,16 +21,20 @@ pub struct SingleElement<F, S, FB, SB>(Inner<F, S, FB, SB>);
 
 impl<F, S, FB, SB> SingleElement<F, S, FB, SB> {
     /// Creates an instance containing the First alternative.
-    pub fn first(first: F, second_builder: SB) -> Self { Self(Inner::first(first, second_builder)) }
+    pub fn first(first: F, second_builder: SB) -> Self {
+        Self(Inner::first(first, second_builder))
+    }
 
     /// Creates an instance containing the Second alternative.
-    pub fn second(second: S, first_builder: FB) -> Self { Self(Inner::second(second, first_builder)) }
+    pub fn second(second: S, first_builder: FB) -> Self {
+        Self(Inner::second(second, first_builder))
+    }
 }
 
 impl<F, S, FB, SB> ElementStorage for SingleElement<F, S, FB, SB>
-    where
-        F: SingleElementStorage,
-        S: SingleElementStorage,
+where
+    F: SingleElementStorage,
+    S: SingleElementStorage,
 {
     type Handle<T: ?Sized + Pointee> = SingleElementHandle<F::Handle<T>, S::Handle<T>>;
 
@@ -51,66 +62,80 @@ impl<F, S, FB, SB> ElementStorage for SingleElement<F, S, FB, SB>
         }
     }
 
-    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
+    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(
+        &self,
+        handle: Self::Handle<T>,
+    ) -> Self::Handle<U> {
         match &self.0 {
-            Inner::First(ref first) => SingleElementHandle { first: first.coerce(handle.first) },
-            Inner::Second(ref second) => SingleElementHandle { second: second.coerce(handle.second) },
+            Inner::First(ref first) => SingleElementHandle {
+                first: first.coerce(handle.first),
+            },
+            Inner::Second(ref second) => SingleElementHandle {
+                second: second.coerce(handle.second),
+            },
             Inner::Poisoned => panic!("Poisoned"),
         }
     }
 }
 
 impl<F, S, FB, SB> SingleElementStorage for SingleElement<F, S, FB, SB>
-    where
-        F: SingleElementStorage,
-        S: SingleElementStorage,
-        FB: Builder<F>,
-        SB: Builder<S>,
+where
+    F: SingleElementStorage,
+    S: SingleElementStorage,
+    FB: Builder<F>,
+    SB: Builder<S>,
 {
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
         match &mut self.0 {
-            Inner::First(ref mut first) =>
-                match first.create(value) {
-                    Ok(first) => Ok(SingleElementHandle { first }),
-                    Err(value) => {
-                        if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
-                            let (second, result) = first.transform(|_, second: &mut S| {
-                                second.create(value).map(|second| SingleElementHandle { second })
-                            });
-                            self.0 = Inner::Second(second);
-                            return result;
-                        }
-                        //  Safety:
-                        //  -   self.0 was First before invoking replace, hence replace returns First.
-                        unsafe { hint::unreachable_unchecked() };
-                    },
-                },
-            Inner::Second(ref mut second) =>
-                second.create(value).map(|second| SingleElementHandle { second }),
+            Inner::First(ref mut first) => match first.create(value) {
+                Ok(first) => Ok(SingleElementHandle { first }),
+                Err(value) => {
+                    if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
+                        let (second, result) = first.transform(|_, second: &mut S| {
+                            second
+                                .create(value)
+                                .map(|second| SingleElementHandle { second })
+                        });
+                        self.0 = Inner::Second(second);
+                        return result;
+                    }
+                    //  Safety:
+                    //  -   self.0 was First before invoking replace, hence replace returns First.
+                    unsafe { hint::unreachable_unchecked() };
+                }
+            },
+            Inner::Second(ref mut second) => second
+                .create(value)
+                .map(|second| SingleElementHandle { second }),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }
 
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(
+        &mut self,
+        meta: T::Metadata,
+    ) -> Result<Self::Handle<T>, AllocError> {
         match &mut self.0 {
-            Inner::First(ref mut first) =>
-                match first.allocate(meta) {
-                    Ok(first) => Ok(SingleElementHandle { first }),
-                    Err(_) => {
-                        if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
-                            let (second, result) = first.transform(|_, second: &mut S| {
-                                second.allocate(meta).map(|second| SingleElementHandle { second })
-                            });
-                            self.0 = Inner::Second(second);
-                            return result;
-                        }
-                        //  Safety:
-                        //  -   self.0 was First before invoking replace, hence replace returns First.
-                        unsafe { hint::unreachable_unchecked() };
-                    },
-                },
-            Inner::Second(ref mut second) =>
-                second.allocate(meta).map(|second| SingleElementHandle { second }),
+            Inner::First(ref mut first) => match first.allocate(meta) {
+                Ok(first) => Ok(SingleElementHandle { first }),
+                Err(_) => {
+                    if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
+                        let (second, result) = first.transform(|_, second: &mut S| {
+                            second
+                                .allocate(meta)
+                                .map(|second| SingleElementHandle { second })
+                        });
+                        self.0 = Inner::Second(second);
+                        return result;
+                    }
+                    //  Safety:
+                    //  -   self.0 was First before invoking replace, hence replace returns First.
+                    unsafe { hint::unreachable_unchecked() };
+                }
+            },
+            Inner::Second(ref mut second) => second
+                .allocate(meta)
+                .map(|second| SingleElementHandle { second }),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }
@@ -123,7 +148,9 @@ impl<F, S, FB, SB> Debug for SingleElement<F, S, FB, SB> {
 }
 
 impl<F: Default, S, FB, SB: Default> Default for SingleElement<F, S, FB, SB> {
-    fn default() -> Self { Self(Inner::default()) }
+    fn default() -> Self {
+        Self(Inner::default())
+    }
 }
 
 /// SingleElementHandle, an alternative between 2 handles.

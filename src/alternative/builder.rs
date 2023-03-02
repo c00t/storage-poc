@@ -14,7 +14,11 @@ pub trait Builder<S> {
 pub struct DefaultBuilder;
 
 impl<S: Default> Builder<S> for DefaultBuilder {
-    fn from_storage(_: S) -> Self { Self::default() }
+    fn from_storage(_: S) -> Self {
+        Self::default()
+    }
 
-    fn into_storage(self) -> S { S::default() }
+    fn into_storage(self) -> S {
+        S::default()
+    }
 }

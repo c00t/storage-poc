@@ -1,8 +1,17 @@
 //! Inline implementation of MultiElementStorage.
 
-use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::{ManuallyDrop, MaybeUninit}, ptr::{NonNull, Pointee}};
+use core::{
+    alloc::AllocError,
+    fmt::{self, Debug},
+    marker::Unsize,
+    mem::{ManuallyDrop, MaybeUninit},
+    ptr::{NonNull, Pointee},
+};
 
-use crate::{traits::{ElementStorage, MultiElementStorage}, utils};
+use crate::{
+    traits::{ElementStorage, MultiElementStorage},
+    utils,
+};
 
 /// Generic inline MultiElementStorage.
 ///
@@ -56,7 +65,10 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
         NonNull::from_raw_parts(pointer, handle.1)
     }
 
-    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
+    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(
+        &self,
+        handle: Self::Handle<T>,
+    ) -> Self::Handle<U> {
         //  Safety:
         //  -   `handle` is assumed to point to a valid element.
         let element = self.resolve(handle);
@@ -68,7 +80,10 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
 }
 
 impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(
+        &mut self,
+        meta: T::Metadata,
+    ) -> Result<Self::Handle<T>, AllocError> {
         let _ = utils::validate_layout::<T, S>(meta)?;
 
         if self.next == INVALID_NEXT {
@@ -115,14 +130,18 @@ impl<S, const N: usize> Debug for MultiElement<S, N> {
 }
 
 impl<S, const N: usize> Default for MultiElement<S, N> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// The Handle for MultiElements.
 pub struct MultiElementHandle<T: ?Sized + Pointee>(usize, T::Metadata);
 
 impl<T: ?Sized + Pointee> Clone for MultiElementHandle<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T: ?Sized + Pointee> Copy for MultiElementHandle<T> {}
@@ -150,7 +169,7 @@ impl<S, const N: usize> MultiElement<S, N> {
 
         if N == 0 {
             let next = INVALID_NEXT;
-            return Self { next, data, };
+            return Self { next, data };
         }
 
         //  Created linked-list of slots, using INVALID_NEXT as sentinel.
@@ -162,7 +181,7 @@ impl<S, const N: usize> MultiElement<S, N> {
 
         data[last].next = INVALID_NEXT;
 
-        Self { next: 0, data, }
+        Self { next: 0, data }
     }
 }
 
@@ -172,7 +191,9 @@ union Overlay<S> {
 }
 
 impl<S> Default for Overlay<S> {
-    fn default() -> Self { Overlay { next: 0 } }
+    fn default() -> Self {
+        Overlay { next: 0 }
+    }
 }
 
 fn display_next(f: &mut fmt::Formatter<'_>, n: usize) -> Result<(), fmt::Error> {
@@ -186,73 +207,72 @@ fn display_next(f: &mut fmt::Formatter<'_>, n: usize) -> Result<(), fmt::Error> 
 #[cfg(test)]
 mod tests {
 
-use super::*;
+    use super::*;
 
-#[test]
-fn new_unconditional_success() {
-    MultiElement::<u8, 5>::new();
-}
-
-#[test]
-fn create_success() {
-    let mut storage = MultiElement::<u8, 5>::new();
-    let handle = storage.create(4u8).unwrap();
-    let element = unsafe { storage.resolve(handle) };
-
-    assert_eq!(4, unsafe { *element.as_ref() });
-}
-
-#[test]
-fn create_insufficient_alignment() {
-    let mut storage = MultiElement::<[u8; 4], 5>::new();
-    storage.create([1u16, 2]).unwrap_err();
-}
-
-#[test]
-fn create_insufficient_size() {
-    let mut storage = MultiElement::<[u8; 2], 5>::new();
-    storage.create([1u8, 2, 3]).unwrap_err();
-}
-
-#[test]
-fn create_insufficient_capacity() {
-    let victim = "Hello, World".to_string();
-    let mut storage = MultiElement::<String, 1>::new();
-
-    for _ in 0..2 {
-        let handle = storage.create(victim.clone()).unwrap();
-        let element = unsafe { storage.resolve(handle) };
-        assert_eq!(&victim, unsafe { element.as_ref() });
-
-        storage.create(victim.clone()).unwrap_err();
-        unsafe { storage.destroy(handle) };
+    #[test]
+    fn new_unconditional_success() {
+        MultiElement::<u8, 5>::new();
     }
-}
 
-#[test]
-fn resolve_accross_moves() {
-    let mut storage = MultiElement::<u8, 5>::new();
+    #[test]
+    fn create_success() {
+        let mut storage = MultiElement::<u8, 5>::new();
+        let handle = storage.create(4u8).unwrap();
+        let element = unsafe { storage.resolve(handle) };
 
-    let h1 = storage.create(1u8).unwrap();
-    let h2 = storage.create(2u8).unwrap();
-    let h3 = storage.create(3u8).unwrap();
+        assert_eq!(4, unsafe { *element.as_ref() });
+    }
 
-    let storage = storage;
+    #[test]
+    fn create_insufficient_alignment() {
+        let mut storage = MultiElement::<[u8; 4], 5>::new();
+        storage.create([1u16, 2]).unwrap_err();
+    }
 
-    assert_eq!(1, unsafe { *storage.resolve(h1).as_ref() });
-    assert_eq!(2, unsafe { *storage.resolve(h2).as_ref() });
-    assert_eq!(3, unsafe { *storage.resolve(h3).as_ref() });
-}
+    #[test]
+    fn create_insufficient_size() {
+        let mut storage = MultiElement::<[u8; 2], 5>::new();
+        storage.create([1u8, 2, 3]).unwrap_err();
+    }
 
-#[test]
-fn coerce_unsize() {
-    let mut storage = MultiElement::<[u8; 2], 5>::new();
-    let handle = storage.create([1, 2]).unwrap();
+    #[test]
+    fn create_insufficient_capacity() {
+        let victim = "Hello, World".to_string();
+        let mut storage = MultiElement::<String, 1>::new();
 
-    let handle = unsafe { storage.coerce::<[u8], _>(handle) };
-    let element = unsafe { storage.resolve(handle) };
+        for _ in 0..2 {
+            let handle = storage.create(victim.clone()).unwrap();
+            let element = unsafe { storage.resolve(handle) };
+            assert_eq!(&victim, unsafe { element.as_ref() });
 
-    assert_eq!(&[1, 2], unsafe { element.as_ref() });
-}
+            storage.create(victim.clone()).unwrap_err();
+            unsafe { storage.destroy(handle) };
+        }
+    }
 
+    #[test]
+    fn resolve_accross_moves() {
+        let mut storage = MultiElement::<u8, 5>::new();
+
+        let h1 = storage.create(1u8).unwrap();
+        let h2 = storage.create(2u8).unwrap();
+        let h3 = storage.create(3u8).unwrap();
+
+        let storage = storage;
+
+        assert_eq!(1, unsafe { *storage.resolve(h1).as_ref() });
+        assert_eq!(2, unsafe { *storage.resolve(h2).as_ref() });
+        assert_eq!(3, unsafe { *storage.resolve(h3).as_ref() });
+    }
+
+    #[test]
+    fn coerce_unsize() {
+        let mut storage = MultiElement::<[u8; 2], 5>::new();
+        let handle = storage.create([1, 2]).unwrap();
+
+        let handle = unsafe { storage.coerce::<[u8], _>(handle) };
+        let element = unsafe { storage.resolve(handle) };
+
+        assert_eq!(&[1, 2], unsafe { element.as_ref() });
+    }
 }

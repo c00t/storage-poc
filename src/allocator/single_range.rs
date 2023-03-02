@@ -1,8 +1,16 @@
 //! Simple implementation of `SingleRangeStorage`.
 
-use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, mem::MaybeUninit, ptr::NonNull};
+use core::{
+    alloc::{AllocError, Allocator, Layout},
+    fmt::{self, Debug},
+    mem::MaybeUninit,
+    ptr::NonNull,
+};
 
-use crate::{alternative::Builder, traits::{RangeStorage, SingleRangeStorage}};
+use crate::{
+    alternative::Builder,
+    traits::{RangeStorage, SingleRangeStorage},
+};
 
 use super::AllocatorBuilder;
 
@@ -15,7 +23,9 @@ pub struct SingleRange<A> {
 
 impl<A> SingleRange<A> {
     /// Creates an instance of SingleRange.
-    pub fn new(allocator: A) -> Self { Self { allocator, } }
+    pub fn new(allocator: A) -> Self {
+        Self { allocator }
+    }
 }
 
 impl<A: Allocator> RangeStorage for SingleRange<A> {
@@ -23,7 +33,9 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
 
     type Capacity = usize;
 
-    fn maximum_capacity<T>(&self) -> Self::Capacity { usize::MAX }
+    fn maximum_capacity<T>(&self) -> Self::Capacity {
+        usize::MAX
+    }
 
     unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>) {
         if handle.len() > 0 {
@@ -41,7 +53,11 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
         handle
     }
 
-    unsafe fn try_grow<T>(&mut self, handle: Self::Handle<T>, new_capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+    unsafe fn try_grow<T>(
+        &mut self,
+        handle: Self::Handle<T>,
+        new_capacity: Self::Capacity,
+    ) -> Result<Self::Handle<T>, AllocError> {
         debug_assert!(handle.len() < new_capacity);
 
         if handle.len() == 0 {
@@ -57,7 +73,11 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
         Ok(Self::into_handle(new_pointer, new_capacity))
     }
 
-    unsafe fn try_shrink<T>(&mut self, handle: Self::Handle<T>, new_capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+    unsafe fn try_shrink<T>(
+        &mut self,
+        handle: Self::Handle<T>,
+        new_capacity: Self::Capacity,
+    ) -> Result<Self::Handle<T>, AllocError> {
         debug_assert!(handle.len() > new_capacity);
 
         if handle.len() == 0 {
@@ -92,15 +112,23 @@ impl<A: Allocator> SingleRangeStorage for SingleRange<A> {
 }
 
 impl<A: Allocator> Builder<SingleRange<A>> for A {
-    fn from_storage(storage: SingleRange<A>) -> A { storage.allocator }
+    fn from_storage(storage: SingleRange<A>) -> A {
+        storage.allocator
+    }
 
-    fn into_storage(self) -> SingleRange<A> { SingleRange::new(self) }
+    fn into_storage(self) -> SingleRange<A> {
+        SingleRange::new(self)
+    }
 }
 
 impl<A> Builder<SingleRange<A>> for AllocatorBuilder<A> {
-    fn from_storage(storage: SingleRange<A>) -> Self { AllocatorBuilder(storage.allocator) }
+    fn from_storage(storage: SingleRange<A>) -> Self {
+        AllocatorBuilder(storage.allocator)
+    }
 
-    fn into_storage(self) -> SingleRange<A> { SingleRange::new(self.0) }
+    fn into_storage(self) -> SingleRange<A> {
+        SingleRange::new(self.0)
+    }
 }
 
 impl<A> Debug for SingleRange<A> {
@@ -110,7 +138,9 @@ impl<A> Debug for SingleRange<A> {
 }
 
 impl<A: Default> Default for SingleRange<A> {
-    fn default() -> Self { Self::new(A::default()) }
+    fn default() -> Self {
+        Self::new(A::default())
+    }
 }
 
 //
@@ -147,49 +177,48 @@ impl<A: Allocator> SingleRange<A> {
 #[cfg(test)]
 mod tests {
 
-use crate::utils::{NonAllocator, SpyAllocator};
+    use crate::utils::{NonAllocator, SpyAllocator};
 
-use super::*;
+    use super::*;
 
-#[test]
-fn default_unconditional_success() {
-    SingleRange::<NonAllocator>::default();
-}
+    #[test]
+    fn default_unconditional_success() {
+        SingleRange::<NonAllocator>::default();
+    }
 
-#[test]
-fn new_unconditional_success() {
-    SingleRange::new(NonAllocator);
-}
+    #[test]
+    fn new_unconditional_success() {
+        SingleRange::new(NonAllocator);
+    }
 
-#[test]
-fn allocate_zero_success() {
-    let mut storage = SingleRange::new(NonAllocator);
+    #[test]
+    fn allocate_zero_success() {
+        let mut storage = SingleRange::new(NonAllocator);
 
-    let slice = storage.allocate::<String>(0).unwrap();
+        let slice = storage.allocate::<String>(0).unwrap();
 
-    assert_eq!(0, slice.len());
-}
+        assert_eq!(0, slice.len());
+    }
 
-#[test]
-fn allocate_success() {
-    let allocator = SpyAllocator::default();
+    #[test]
+    fn allocate_success() {
+        let allocator = SpyAllocator::default();
 
-    let mut storage = SingleRange::new(allocator.clone());
-    let handle = storage.allocate::<String>(1).unwrap();
+        let mut storage = SingleRange::new(allocator.clone());
+        let handle = storage.allocate::<String>(1).unwrap();
 
-    assert_eq!(1, allocator.allocated());
-    assert_eq!(0, allocator.deallocated());
+        assert_eq!(1, allocator.allocated());
+        assert_eq!(0, allocator.deallocated());
 
-    unsafe { storage.deallocate(handle) };
+        unsafe { storage.deallocate(handle) };
 
-    assert_eq!(1, allocator.allocated());
-    assert_eq!(1, allocator.deallocated());
-}
+        assert_eq!(1, allocator.allocated());
+        assert_eq!(1, allocator.deallocated());
+    }
 
-#[test]
-fn allocate_failure() {
-    let mut storage = SingleRange::new(NonAllocator);
-    storage.allocate::<String>(1).unwrap_err();
-}
-
+    #[test]
+    fn allocate_failure() {
+        let mut storage = SingleRange::new(NonAllocator);
+        storage.allocate::<String>(1).unwrap_err();
+    }
 } // mod tests

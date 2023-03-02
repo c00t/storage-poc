@@ -191,7 +191,10 @@ where
                     Ok(handle) => Ok(Primary(handle)),
                     Err(_) => {
                         let second = self.secondary.allocate(new_capacity)?;
-                        transfer(self.primary.resolve_mut(first), self.secondary.resolve_mut(second));
+                        transfer(
+                            self.primary.resolve_mut(first),
+                            self.secondary.resolve_mut(second),
+                        );
                         self.primary.deallocate(first);
                         Ok(Secondary(second))
                     }
@@ -218,7 +221,10 @@ where
                 .map(|handle| Primary(handle)),
             Secondary(second) => {
                 if let Ok(first) = first_capacity.and_then(|cap| self.primary.allocate(cap)) {
-                    transfer(self.secondary.resolve_mut(second), self.primary.resolve_mut(first));
+                    transfer(
+                        self.secondary.resolve_mut(second),
+                        self.primary.resolve_mut(first),
+                    );
                     self.secondary.deallocate(second);
                     Ok(Primary(first))
                 } else {

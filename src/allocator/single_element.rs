@@ -1,8 +1,17 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{NonNull, Pointee}};
+use core::{
+    alloc::{AllocError, Allocator, Layout},
+    fmt::{self, Debug},
+    marker::Unsize,
+    ptr::{NonNull, Pointee},
+};
 
-use crate::{alternative::Builder, traits::{ElementStorage, SingleElementStorage}, utils};
+use crate::{
+    alternative::Builder,
+    traits::{ElementStorage, SingleElementStorage},
+    utils,
+};
 
 use super::AllocatorBuilder;
 
@@ -15,7 +24,9 @@ pub struct SingleElement<A> {
 
 impl<A> SingleElement<A> {
     /// Creates an instance of SingleElement.
-    pub fn new(allocator: A) -> Self { Self { allocator } }
+    pub fn new(allocator: A) -> Self {
+        Self { allocator }
+    }
 }
 
 impl<A: Allocator> ElementStorage for SingleElement<A> {
@@ -32,17 +43,27 @@ impl<A: Allocator> ElementStorage for SingleElement<A> {
         self.allocator.deallocate(handle.cast(), layout);
     }
 
-    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> { handle }
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+        handle
+    }
 
-    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> { handle }
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
+        handle
+    }
 
-    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
+    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(
+        &self,
+        handle: Self::Handle<T>,
+    ) -> Self::Handle<U> {
         handle
     }
 }
 
 impl<A: Allocator> SingleElementStorage for SingleElement<A> {
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(
+        &mut self,
+        meta: T::Metadata,
+    ) -> Result<Self::Handle<T>, AllocError> {
         let slice = self.allocator.allocate(utils::layout_of::<T>(meta))?;
 
         let pointer: NonNull<()> = slice.as_non_null_ptr().cast();
@@ -52,9 +73,13 @@ impl<A: Allocator> SingleElementStorage for SingleElement<A> {
 }
 
 impl<A> Builder<SingleElement<A>> for AllocatorBuilder<A> {
-    fn from_storage(storage: SingleElement<A>) -> Self { AllocatorBuilder(storage.allocator) }
+    fn from_storage(storage: SingleElement<A>) -> Self {
+        AllocatorBuilder(storage.allocator)
+    }
 
-    fn into_storage(self) -> SingleElement<A> { SingleElement::new(self.0) }
+    fn into_storage(self) -> SingleElement<A> {
+        SingleElement::new(self.0)
+    }
 }
 
 impl<A: Default> Default for SingleElement<A> {
@@ -73,60 +98,59 @@ impl<A> Debug for SingleElement<A> {
 #[cfg(test)]
 mod tests {
 
-use crate::utils::{NonAllocator, SpyAllocator};
+    use crate::utils::{NonAllocator, SpyAllocator};
 
-use super::*;
+    use super::*;
 
-#[test]
-fn default_unconditional_success() {
-    SingleElement::<NonAllocator>::default();
-}
+    #[test]
+    fn default_unconditional_success() {
+        SingleElement::<NonAllocator>::default();
+    }
 
-#[test]
-fn new_unconditional_success() {
-    SingleElement::new(NonAllocator);
-}
+    #[test]
+    fn new_unconditional_success() {
+        SingleElement::new(NonAllocator);
+    }
 
-#[test]
-fn create_success() {
-    let allocator = SpyAllocator::default();
+    #[test]
+    fn create_success() {
+        let allocator = SpyAllocator::default();
 
-    let mut storage = SingleElement::new(allocator.clone());
-    let handle = storage.create(1u32).unwrap();
+        let mut storage = SingleElement::new(allocator.clone());
+        let handle = storage.create(1u32).unwrap();
 
-    assert_eq!(1, allocator.allocated());
-    assert_eq!(0, allocator.deallocated());
+        assert_eq!(1, allocator.allocated());
+        assert_eq!(0, allocator.deallocated());
 
-    unsafe { storage.destroy(handle) };
+        unsafe { storage.destroy(handle) };
 
-    assert_eq!(1, allocator.allocated());
-    assert_eq!(1, allocator.deallocated());
-}
+        assert_eq!(1, allocator.allocated());
+        assert_eq!(1, allocator.deallocated());
+    }
 
-#[test]
-fn create_failure() {
-    let mut storage = SingleElement::new(NonAllocator);
-    storage.create(1u8).unwrap_err();
-}
+    #[test]
+    fn create_failure() {
+        let mut storage = SingleElement::new(NonAllocator);
+        storage.create(1u8).unwrap_err();
+    }
 
-#[test]
-fn coerce() {
-    let allocator = SpyAllocator::default();
+    #[test]
+    fn coerce() {
+        let allocator = SpyAllocator::default();
 
-    let mut storage = SingleElement::new(allocator.clone());
-    let handle = storage.create([1u8, 2]).unwrap();
+        let mut storage = SingleElement::new(allocator.clone());
+        let handle = storage.create([1u8, 2]).unwrap();
 
-    assert_eq!(1, allocator.allocated());
-    assert_eq!(0, allocator.deallocated());
+        assert_eq!(1, allocator.allocated());
+        assert_eq!(0, allocator.deallocated());
 
-    let handle = unsafe { storage.coerce::<[u8], _>(handle) };
+        let handle = unsafe { storage.coerce::<[u8], _>(handle) };
 
-    assert_eq!([1, 2], unsafe { storage.resolve(handle).as_ref() });
+        assert_eq!([1, 2], unsafe { storage.resolve(handle).as_ref() });
 
-    unsafe { storage.destroy(handle) };
+        unsafe { storage.destroy(handle) };
 
-    assert_eq!(1, allocator.allocated());
-    assert_eq!(1, allocator.deallocated());
-}
-
+        assert_eq!(1, allocator.allocated());
+        assert_eq!(1, allocator.deallocated());
+    }
 } // mod tests

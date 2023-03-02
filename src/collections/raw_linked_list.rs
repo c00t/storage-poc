@@ -1,6 +1,11 @@
 //! Proof-of-Concept implementation of a LinkedList parameterized by a Storage.
 
-use core::{fmt::{self, Debug}, marker::PhantomData, mem::MaybeUninit, ptr::{self, Pointee}};
+use core::{
+    fmt::{self, Debug},
+    marker::PhantomData,
+    mem::MaybeUninit,
+    ptr::{self, Pointee},
+};
 
 use crate::traits::MultiElementStorage;
 
@@ -13,7 +18,13 @@ pub struct RawLinkedList<T: Pointee, S: MultiElementStorage> {
 
 impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
     /// Creates a new instance from `storage`.
-    pub fn new(storage: S) -> Self { Self { next: None, storage, _marker: PhantomData } }
+    pub fn new(storage: S) -> Self {
+        Self {
+            next: None,
+            storage,
+            _marker: PhantomData,
+        }
+    }
 
     /// Clears all the elements from the list, leading to an empty list.
     pub fn clear(&mut self) {
@@ -41,7 +52,10 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
 
     /// Pushes a new element to the front of the list.
     pub fn push(&mut self, value: T) -> Result<(), T> {
-        let node = RawLinkedListNode { next: self.next, element: value };
+        let node = RawLinkedListNode {
+            next: self.next,
+            element: value,
+        };
         let handle = self.storage.create(node).map_err(|node| node.element)?;
 
         self.next = Some(handle);
@@ -53,7 +67,11 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
     pub fn pop(&mut self) -> Option<T> {
         self.next.take().map(|handle| unsafe {
             let mut node = MaybeUninit::<RawLinkedListNode<T, S>>::uninit();
-            ptr::copy_nonoverlapping(self.storage.resolve(handle).as_ptr() as *const _, node.as_mut_ptr(), 1);
+            ptr::copy_nonoverlapping(
+                self.storage.resolve(handle).as_ptr() as *const _,
+                node.as_mut_ptr(),
+                1,
+            );
 
             let node = node.assume_init();
             self.storage.deallocate(handle);
@@ -94,18 +112,21 @@ impl<T: Debug + Pointee, S: MultiElementStorage> Debug for RawLinkedList<T, S> {
 }
 
 impl<T: Pointee, S: Default + MultiElementStorage> Default for RawLinkedList<T, S> {
-    fn default() -> Self { Self::new(S::default()) }
+    fn default() -> Self {
+        Self::new(S::default())
+    }
 }
 
 impl<T: Pointee, S: MultiElementStorage> Drop for RawLinkedList<T, S> {
-    fn drop(&mut self) { self.clear(); }
+    fn drop(&mut self) {
+        self.clear();
+    }
 }
 
 /// A PoC LinkedList storage helper.
 ///
 /// Reserves enough space for storing a list node containing `T`, for a handle of size similar to `H`.
 pub struct RawLinkedListNodeStorage<T, H>(Option<H>, MaybeUninit<T>);
-
 
 //
 //  Implementation
@@ -119,68 +140,66 @@ struct RawLinkedListNode<T, S: MultiElementStorage> {
 #[cfg(test)]
 mod test_inline {
 
-use crate::inline::MultiElement;
+    use crate::inline::MultiElement;
 
-use super::*;
+    use super::*;
 
-#[test]
-fn smoke_test() {
-    type NodeStorage = RawLinkedListNodeStorage<u8, usize>;
-    type List = RawLinkedList<u8, MultiElement<NodeStorage, 4>>;
+    #[test]
+    fn smoke_test() {
+        type NodeStorage = RawLinkedListNodeStorage<u8, usize>;
+        type List = RawLinkedList<u8, MultiElement<NodeStorage, 4>>;
 
-    let mut list = List::default();
+        let mut list = List::default();
 
-    list.push(1).unwrap();
-    list.push(2).unwrap();
+        list.push(1).unwrap();
+        list.push(2).unwrap();
 
-    assert_eq!(Some(&2), list.front());
+        assert_eq!(Some(&2), list.front());
 
-    *list.front_mut().unwrap() = 3;
+        *list.front_mut().unwrap() = 3;
 
-    assert_eq!(Some(3), list.pop());
-    assert_eq!(Some(&1), list.front());
-}
-
+        assert_eq!(Some(3), list.pop());
+        assert_eq!(Some(&1), list.front());
+    }
 } // mod test_inline
 
 #[cfg(test)]
 mod test_allocator {
 
-use crate::allocator::MultiElement;
-use crate::utils::{NonAllocator, SpyAllocator};
+    use crate::allocator::MultiElement;
+    use crate::utils::{NonAllocator, SpyAllocator};
 
-use super::*;
+    use super::*;
 
-#[test]
-fn smoke_test() {
-    type List = RawLinkedList<String, MultiElement<SpyAllocator>>;
+    #[test]
+    fn smoke_test() {
+        type List = RawLinkedList<String, MultiElement<SpyAllocator>>;
 
-    let allocator = SpyAllocator::default();
-    let mut list = List::new(MultiElement::new(allocator.clone()));
+        let allocator = SpyAllocator::default();
+        let mut list = List::new(MultiElement::new(allocator.clone()));
 
-    list.push("Hello".to_string()).unwrap();
-    list.push("World".to_string()).unwrap();
+        list.push("Hello".to_string()).unwrap();
+        list.push("World".to_string()).unwrap();
 
-    assert_eq!(2, allocator.allocated());
-    assert_eq!(0, allocator.deallocated());
+        assert_eq!(2, allocator.allocated());
+        assert_eq!(0, allocator.deallocated());
 
-    assert_eq!(Some(&"World".to_string()), list.front());
+        assert_eq!(Some(&"World".to_string()), list.front());
 
-    *list.front_mut().unwrap() = "All".to_string();
+        *list.front_mut().unwrap() = "All".to_string();
 
-    assert_eq!(Some("All".to_string()), list.pop());
-    assert_eq!(Some(&"Hello".to_string()), list.front());
-    assert_eq!(2, allocator.allocated());
-    assert_eq!(1, allocator.deallocated());
-}
+        assert_eq!(Some("All".to_string()), list.pop());
+        assert_eq!(Some(&"Hello".to_string()), list.front());
+        assert_eq!(2, allocator.allocated());
+        assert_eq!(1, allocator.deallocated());
+    }
 
-#[test]
-fn allocation_failure() {
-    type List = RawLinkedList<&'static str, MultiElement<NonAllocator>>;
+    #[test]
+    fn allocation_failure() {
+        type List = RawLinkedList<&'static str, MultiElement<NonAllocator>>;
 
-    let mut list = List::default();
+        let mut list = List::default();
 
-    list.push("Caramba").unwrap_err();
-}
-
+        list.push("Caramba").unwrap_err();
+    }
 } // mod test_allocator
